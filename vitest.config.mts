@@ -1,5 +1,4 @@
 import { defineConfig } from "vitest/config";
-import tsconfigPaths from "vite-tsconfig-paths";
 
 /**
  * Vitest config. tsconfigPaths honours the @/* alias from tsconfig.json so
@@ -9,10 +8,12 @@ import tsconfigPaths from "vite-tsconfig-paths";
  * can be added later if the app grows that need.
  */
 export default defineConfig({
-  plugins: [tsconfigPaths()],
   test: {
     environment: "node",
     globals: true,
     include: ["src/**/*.test.ts"],
   },
+  resolve: {
+    tsconfigPaths: true
+  }
 });
