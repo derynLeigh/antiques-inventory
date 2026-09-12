@@ -1,0 +1,43 @@
+name: CI
+
+# Run on pushes to main and on every PR targeting main, so tests gate
+# changes before they reach the deployed app.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test:run
+
+      # Type-check + production build. Catches type errors and build
+      # breakage that unit tests alone wouldn't. Dummy env vars satisfy the
+      # modules that read process.env at load time; no real secrets needed
+      # because the build doesn't connect to anything.
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: "postgresql://user:pass@localhost:5432/db?sslmode=require"
+          AUTH_SECRET: "ci-dummy-secret-not-used-at-runtime-000000"
+          AUTH_PASSWORD_HASH: "$2a$12$PZ6Ysk4fIMrjNL4Pm5eh/.vNrwuFqbqNsjKHE.oAXB8RJ8.oLtxMG"
+          R2_ENDPOINT: "https://acct.r2.cloudflarestorage.com"
+          R2_ACCESS_KEY_ID: "dummy"
+          R2_SECRET_ACCESS_KEY: "dummy"
+          R2_BUCKET_NAME: "antiques-images"
+          R2_PUBLIC_URL: "https://pub-dummy.r2.dev"

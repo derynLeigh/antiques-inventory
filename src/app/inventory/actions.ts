@@ -10,6 +10,7 @@ import { getSession } from "@/auth";
 import { db } from "@/db";
 import { items } from "@/db/schema";
 import { r2, R2_BUCKET } from "@/lib/r2";
+import { parseItemFields, type ParseResult } from "@/lib/item-validation";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB — matches serverActions.bodySizeLimit
 
@@ -23,54 +24,20 @@ const MAX_BYTES = 5 * 1024 * 1024; // 5 MB — matches serverActions.bodySizeLim
 export type FormState = { error?: string };
 
 /**
- * Parse and validate the shared item fields from a form. Returns either a
- * validated values object or an error message — no throwing for user input,
- * so create/update can surface a friendly message on the form.
+ * Thin adapter: pull the raw fields off FormData and delegate to the pure
+ * validator (which is unit-tested in isolation).
  */
-function parseItemForm(formData: FormData):
-  | { ok: true; values: {
-      description: string; condition: string | null; dimensions: string | null;
-      pricePence: number; costPence: number;
-      status: "for_sale" | "sold"; location: "centre_a" | "centre_b";
-      listingUrl: string | null;
-    } }
-  | { ok: false; error: string } {
-  const description = (formData.get("description") as string)?.trim();
-  const condition = (formData.get("condition") as string)?.trim() || null;
-  const dimensions = (formData.get("dimensions") as string)?.trim() || null;
-  const listingUrl = (formData.get("listingUrl") as string)?.trim() || null;
-  const status = formData.get("status") as string;
-  const location = formData.get("location") as string;
-
-  if (!description) return { ok: false, error: "Description is required." };
-
-  const pounds = Number(formData.get("price"));
-  if (!Number.isFinite(pounds) || pounds < 0)
-    return { ok: false, error: "Price must be a non-negative number." };
-  const pricePence = Math.round(pounds * 100);
-
-  const cost = Number(formData.get("cost"));
-  if (!Number.isFinite(cost) || cost < 0)
-    return { ok: false, error: "Cost must be a non-negative number." };
-  const costPence = Math.round(cost * 100);
-
-  if (status !== "for_sale" && status !== "sold")
-    return { ok: false, error: "Please choose a valid status." };
-  if (location !== "centre_a" && location !== "centre_b")
-    return { ok: false, error: "Please choose a valid location." };
-
-  if (listingUrl) {
-    try {
-      new URL(listingUrl);
-    } catch {
-      return { ok: false, error: "Listing URL must be a valid URL (including https://)." };
-    }
-  }
-
-  return {
-    ok: true,
-    values: { description, condition, dimensions, pricePence, costPence, status, location, listingUrl },
-  };
+function parseItemForm(formData: FormData): ParseResult {
+  return parseItemFields({
+    description: formData.get("description") as string | null,
+    condition: formData.get("condition") as string | null,
+    dimensions: formData.get("dimensions") as string | null,
+    price: formData.get("price") as string | null,
+    cost: formData.get("cost") as string | null,
+    status: formData.get("status") as string | null,
+    location: formData.get("location") as string | null,
+    listingUrl: formData.get("listingUrl") as string | null,
+  });
 }
 
 export async function createItem(prevState: FormState, formData: FormData): Promise<FormState> {
